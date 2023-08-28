@@ -23,6 +23,7 @@ import sys
 import os
 import socket
 import numpy as np
+import imuThread
 
 from multiprocessing.dummy import Pool as ThreadPool
 import scipy.signal as sciSignal
@@ -30,11 +31,13 @@ import scipy.signal as sciSignal
 
 
 # 这两行标定ot的ip地址
-ipPref = '192.168.3.'
-subIP = ['4', '6', '7', '9']
+ipPref = '192.168.1.10'
+subIP = ['1', '2', '3', '4']
 ipList = {ipPref + subIP[0]: 0, ipPref + subIP[1]: 1, ipPref + subIP[2]: 2, ipPref + subIP[3]: 3}
+
 ConvFact = 4.8 / 65536
 
+# 此处设置画图窗口的刷新时长：plotSec秒
 plotSec = 0.6
 plotPts = int(plotSec * 2000)
 plotFrame = plotPts * 68
@@ -83,7 +86,7 @@ class DataRecever(QThread):
             data = total_data[:bag_len]
             remain_data = total_data[bag_len:]
             # data = np.array(bytearray(data))
-            print('testtttttttttt')
+            # print('testtttttttttt')
             # print(data.shape)
             # print(len(data))
             for i in range(plotFrame):
@@ -254,8 +257,8 @@ class DataPlotter(QThread):
 
 class SocketServer():
 
-    ipPref = '192.168.3.'
-    ipList = {ipPref+'4':0, ipPref+'6':1,ipPref+'7':2,ipPref+'9':3}
+    # ipPref = '192.168.3.'
+    # ipList = {ipPref+'4':0, ipPref+'6':1,ipPref+'7':2,ipPref+'9':3}
 
     # The first command byte
     GETSET = 0  # 0是set 1是get
@@ -330,6 +333,7 @@ class SocketServer():
 
     def startRecording(self):
         self.sendCommand(self.cmdRO, 1)
+        print("Start EMG recording.")
 
     def stopRecording(self):
         self.sendCommand(self.cmdRF, 0)
@@ -351,7 +355,7 @@ class SocketServer():
     def setAcceptDevices(self, list2accpet):
         self.list2Accept.clear()
         for i in list2accpet:
-            self.list2Accept.append(self.ipPref + i)
+            self.list2Accept.append(ipPref + i)
         print("set list2accept:")
         print(self.list2Accept)
 
@@ -367,10 +371,10 @@ class SocketServer():
             print('accept ip:',ip)
             if ip in self.list2Accept:
                 if (ip not in self.accList):
-                    ModleSig = (self.ipList[ip] + 65).to_bytes(1,byteorder = 'little')  # 根据IP地址转换为A/B/C/D
+                    ModleSig = (ipList[ip] + 65).to_bytes(1,byteorder = 'little')  # 根据IP地址转换为A/B/C/D
                     print ('连接地址：', ip)
-                    print("length of client: %d" % len(self.clientList))
                     self.clientList.append(c)
+                    print("length of client: %d" % len(self.clientList))
                     if state == 1:
                         fileNameCode = self.fileName.encode()       # 4个字节，4个字母
                         #timeStamp = self.getTimeStampBytes()
@@ -480,7 +484,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.timer = QTimer()
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.timer_behave)       #1s跳变一次计时器
-        # self.imu()  #没看懂，大概是控制imu的行为
+        self.imu()  #没看懂，大概是控制imu的行为
         # self.sckServer.setAcceptDevices([subIP[2]])
         self.sckServer.setAcceptDevices(subIP)
         self.sckServer.startRecording()     #开始记录
@@ -572,9 +576,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print('ip status wasn\'t updated.')
 
     def imu(self):  # 设置imu端口，开启imu线程
-        # self.imuT = imuThread.imuThread(self.name+'1', self.imuPort)
-        # self.imuT.start()
-        pass
+        self.imuT = imuThread.imuThread(self.name+'1', self.imuPort)
+        self.imuT.start()
+        
 
 if __name__=='__main__':
     QImageReader.supportedImageFormats()
