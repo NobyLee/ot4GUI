@@ -106,11 +106,14 @@ class ChildWindow(QDialog, Ui_Dialog):
         super(ChildWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
 
-        # self.EMGlabel.setText("EMG module " + str(kwargs['moduleID']) + " Signal")
+        # self.EMGlabel.setText("EMG module" + str(kwargs['moduleID']) + " Signal")
 
         self.EMG = pg.GraphicsLayoutWidget()
         self.p = self.EMG.addPlot()
         self.EMGLayout.addWidget(self.EMG)
+
+        self.yAxis = self.p.getAxis('left')
+        # self.yAxis2 = self.p.getAxis('right')
 
         self.AUX = pg.GraphicsLayoutWidget()
         self.AUXp = self.AUX.addPlot()
@@ -122,13 +125,16 @@ class ChildWindow(QDialog, Ui_Dialog):
         self.low = 0
         self.step = 1
         self.p.setRange(yRange=[self.low-self.step, self.high+self.step], padding=0)
-        # self.p.setRange(xRange=[0, nPoints], padding=0)
         self.act = np.zeros((64, 20000))
         self.t = np.zeros(20000)
         self.EMGline = [None] * 64
         for k in range(64):
             self.EMGline[k] = self.p.plot(self.t, self.act[k, :], pen=(0, 0, 255))
         # print(type(self.EMGline[-1]))
+
+        self.yAxis.setTicks([[(i*self.step,str(i+1)) for i in range(0,64,2)]])
+        # self.yAxis2.setTicks([[(i*self.step,str(i+1)) for i in range(1,65,2)]])
+
         self.plusButton.pressed.connect(self.range_plus)
         self.minusButton.pressed.connect(self.range_minus)
 
@@ -158,6 +164,8 @@ class ChildWindow(QDialog, Ui_Dialog):
         self.low = self.low / 2
         self.step = self.step/2
         self.p.setRange(yRange=[self.low-self.step, self.high+self.step])
+        self.yAxis.setTicks([[(i*self.step,str(i+1)) for i in range(0,64,2)]])
+        # self.yAxis.setTicks([(i*self.step,str(i+1)) for i in range(64)])
 
 
     def range_minus(self):
@@ -165,6 +173,8 @@ class ChildWindow(QDialog, Ui_Dialog):
         self.low = self.low * 2
         self.step = self.step * 2
         self.p.setRange(yRange=[self.low-self.step, self.high+self.step])
+        self.yAxis.setTicks([[(i*self.step,str(i+1)) for i in range(0,64,2)]])
+        # self.yAxis.setTicks([(i*self.step,str(i+1)) for i in range(64)])
 
 
     def AUXrange_plus(self):
@@ -197,7 +207,7 @@ class DataPlotter(QThread):
         self.AUXact = np.zeros((2, 20000))
 
         self.childWindow = ChildWindow()
-        self.childWindow.EMGlabel.setText("EMG module " + str(id) + " Signal")
+        self.childWindow.EMGlabel.setText("EMG Module" + str(id) + " Signals")
 
     def run(self):
         self.childWindow.exec_()
@@ -207,9 +217,9 @@ class DataPlotter(QThread):
 
         EMG = s["data"]
         EMGdata = np.array(EMG)
-        print("开始画图")
+        # print("开始画图")
         self.plot_data(EMGdata)
-        print("结束画图")
+        # print("结束画图")
 
     def plot_data(self, EMG):
         BAG = plotPts
@@ -239,9 +249,20 @@ class DataPlotter(QThread):
 
         #并行画图
         t_plot = self.t[-wl:]
-        act_plot = tmp_act[:, -wl:]+np.arange(64).reshape(64,1) * self.childWindow.step
+        tmp_act = tmp_act[:, -wl:]
+        act_plot = tmp_act + np.arange(64).reshape(64,1) * self.childWindow.step
+
+        zero_row = np.where(np.all(tmp_act==0, axis=1))[0]
+        good_row = np.where(~np.all(tmp_act==0, axis=1))[0]
+        print("全0通道（",len(zero_row),"）：",zero_row)
+        
+                                                       
         pool = ThreadPool()
         pool.map(lambda x: x[0].setData(t_plot, x[1]), zip(self.childWindow.EMGline, act_plot))
+
+        pool.map(lambda x: self.childWindow.EMGline[x].setPen('r'), zero_row)
+        pool.map(lambda x: self.childWindow.EMGline[x].setPen('b'), good_row)
+
         pool.close()
         pool.join()
 
@@ -497,7 +518,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def endButton_clicked(self):  # end按钮
         self.sckServer.stopRecording()      #结束记录
         self.timer.stop()       #结束计时
-        # self.imuT.imu.Stop()        #结束imu线程？
+        self.imuT.imu.Stop()        #结束imu线程？
         print('Stop recording.')
         self.startButton.setDisabled(False)
         self.endButton.setDisabled(True)
@@ -544,8 +565,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             else:
                 print("invalid module number (please enter value:1~4)")
         else:
+            # self.receiver.join()
             self.receiver.readFlag = False
-            self.receiver.quit()
+            while not self.receiver.isFinished():
+                pass
+            # self.receiver.quit()
             self.sckServer.stopVisualizing()    # 停止可视化
             self.btn5Status = 0     #  把展示状态设置为1
             self.displayButton.setText('Display')    # 把stop display文字改成display

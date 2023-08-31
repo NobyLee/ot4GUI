@@ -22,6 +22,8 @@ class IMU():
         self.imuPort = imuPort
         self.fileName = filename
 
+        
+
     #   根据不同的帧状态（FrameState）进行不同的处理：
     #
     # 当 FrameState 为 0 时，根据接收的数据判断帧类型和状态。
@@ -149,6 +151,7 @@ class IMU():
             self.fileName = prefix + str(int(re.findall(r'\D+(\d+)\D*',self.fileName)[0])+1)
 
         print("Start IMU Recording.")
+
         with open(self.fileName+'.txt', 'w', encoding='utf-8') as f:
             # 打开文件写标题
             column = ['ax(g)', 'ay(g)', 'az(g)', 'wx(deg/s)', 'wy(deg/s)', 'wz(deg/s)', 'D2']
@@ -169,6 +172,7 @@ class IMU():
 
     def Stop(self):
         self.RecordingSign = False
+        print("设置 false flag")
 
 
 def get_acc(datahex):
@@ -258,8 +262,10 @@ def get_port(datahex):
 
 
 
-
+import time
 
 if __name__ == '__main__':
     imu1 = IMU('file1','com4')
     imu1.start()
+    
+
